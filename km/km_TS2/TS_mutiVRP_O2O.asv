@@ -1,0 +1,236 @@
+%Ini adalah implementasi Tabu Search untuk Traveling Salesman
+%Problem
+
+%untuk merekam waktu komputasi yang dibutuhkan
+tic;
+
+% %input data
+% JumlahKota = 10;
+% X_coordinate = [ 10 3 5 40 34 98 21 90 106 183 102];
+% Y_coordinate = [10 120 45 71 91 23 38 98 110 140 105];
+% Demand = [ 0 8 7 3 4 9 3 5 3 4 6];
+%input data
+ecSpotNum = 150; %城市数
+ecX_coordinate = [ 50 3 5 40 34 98 21 90 106 183 102 ...
+                            10 20 30 40 80 90 100 110 77 130 ...
+                            22 22 32 42 82 92 132 25 122 95 ...
+                            14 24 35 44 84 14 124 114 124 134 ...
+                            16 88 36 46 26 12 116 116 54 136 ...
+                            120 45 71 91 23 38 98 110 140 105 ...
+                            10 50 20 40 90 80 130 120 23 44 ...
+                            12 38 32 56 82 92 102 12 87 132 ...
+                            14 15 34 25 84 94 34 114 124 33 ...
+                            16 80 36 46 86 96 15 116 126 22 ...
+                             14 15 34 25 84 94 34 114 124 33 ...
+                            16 80 36 46 86 96 15 116 126 22 ...
+                            3 5 40 34 98 21 90 106 183 102 ...
+                            10 20 30 40 80 90 100 110 77 130 ...
+                            22 22 32 42 82 92 132 25 122 95 ...
+                            ];
+ecY_coordinate = [50 120 45 71 91 23 38 98 110 140 105 ...
+                            10 50 20 40 90 80 130 120 23 44 ...
+                            12 38 32 56 82 92 102 12 87 132 ...
+                            14 15 34 25 84 94 34 114 124 33 ...
+                            16 80 36 46 86 96 15 116 126 22 ...
+                            3 5 40 34 98 21 90 106 183 102 ...
+                            10 20 30 40 80 90 100 110 77 130 ...
+                            22 22 32 42 82 92 132 25 122 95 ...
+                            14 24 35 44 84 14 124 114 124 134 ...
+                            16 88 36 46 26 12 116 116 54 136 ...
+                            14 24 35 44 84 14 124 114 124 134 ...
+                            16 88 36 46 26 12 116 116 54 136 ...
+                            120 45 71 91 23 38 98 110 140 105 ...
+                            10 50 20 40 90 80 130 120 23 44 ...
+                            12 38 32 56 82 92 102 12 87 132 ...
+                            ];
+ecDemandVec = [ 0 8 7 3 4 9 3 5 3 4 6 ...
+                            10 9 8 7 6 5 4 3 2 1 ...
+                            1 2 3 4 5 6 7 8 9 10 ...
+                            10 9 8 7 6 5 4 3 2 1 ...
+                            1 2 3 4 5 6 7 8 9 10 ...
+                            8 7 3 4 9 3 5 3 4 6 ...
+                            10 9 8 7 6 5 4 3 2 1 ...
+                            1 2 3 4 5 6 7 8 9 10 ...
+                            10 9 8 7 6 5 4 3 2 1 ...
+                            1 2 3 4 5 6 7 8 9 10 ...
+                            10 9 8 7 6 5 4 3 2 1 ...
+                            1 2 3 4 5 6 7 8 9 10 ...
+                            8 7 3 4 9 3 5 3 4 6 ...
+                            10 9 8 7 6 5 4 3 2 1 ...
+                            1 2 3 4 5 6 7 8 9 10 ...
+                            ];
+O2OspotNum=2;
+O2OshopX_coordinate = [160 85]; O2OshopY_coordinate = [140 95];
+O2OspotX_coordinate = [170 65]; O2OspotY_coordinate = [120 105];
+O2OdemandVec=[2,3];
+X_coordinate = [ecX_coordinate,O2OshopX_coordinate,O2OspotX_coordinate];
+Y_coordinate = [ecY_coordinate,O2OshopY_coordinate,O2OspotY_coordinate];
+DemandVec=[ecDemandVec zeros(1,length(O2OshopX_coordinate)) O2OdemandVec];
+
+O2OshopVec=length(ecX_coordinate)+(1:length(O2OshopX_coordinate));  %编号，也是距离矩阵索引
+O2OspotVec=length(O2OshopX_coordinate)+length(ecX_coordinate)+(1:length(O2OshopX_coordinate));
+VehicleNum=20;   %信使数量
+volume = 15;  %容量
+
+
+% tabu list
+TabuLength = 10;
+TabuList = ones(TabuLength, 3);
+
+% Parameter TS
+MaxIterateTime = 200;
+NeighbourSolutionNum = 50;
+
+%生成距离表
+DistanceMatrix = GenerateDistanceMatrix(X_coordinate, Y_coordinate);  %距离矩阵
+
+
+%Generate initial solution
+%SolusiAwal = GenerateSolusiNearestNeighbour(MatriksJarak);
+allVehicleTSPsolution = GenerateSolusiRandom(ecSpotNum);
+%Distribute task for vehicles
+randNum=GenerateInsertNum(ecSpotNum,VehicleNum);
+InitialDistrTSPsolution=TaskDistribute(allVehicleTSPsolution,randNum);
+%随机插入O2O任务,同一个订单的shop和spot位于同一个vehicle中
+InitialDistrTSPsolutionWithO2O=RandomInsertO2OTask(InitialDistrTSPsolution,O2OshopVec,O2OspotVec);
+%生成初始mutiVRP解
+InitialMutiVRPsolutionMaxtrix=ConvertToMultiVRPsolution(InitialDistrTSPsolutionWithO2O, ...
+                                                        DemandVec,volume,O2OshopVec,O2OspotVec,O2OdemandVec);
+
+initialCost=CalculateMutiVRPtotalCost(InitialMutiVRPsolutionMaxtrix,DistanceMatrix,DemandVec,VehicleNum);
+%记录初始条件
+%Tsekarang = Tawal;
+BestTSPsolution = InitialDistrTSPsolutionWithO2O; %最优多车分配TSP解
+BestVRPsolution = InitialMutiVRPsolutionMaxtrix; %最优VRP解
+LeastCost = initialCost;  % 最小代价
+CurrentDistrTSPsolution = InitialDistrTSPsolutionWithO2O; %当前TSP解，用于迭代，修改
+CurrentVRPsolution = InitialMutiVRPsolutionMaxtrix; %当前多车VRP解
+CurrentCost = initialCost; %当前代价
+
+NeighbourTSPsolutionTable = zeros(NeighbourSolutionNum, ecSpotNum+2*O2OspotNum+VehicleNum);
+NeighbourVRPsolutionTable = zeros(VehicleNum, (ecSpotNum+2*O2OspotNum) * 2 + 1,NeighbourSolutionNum);
+NeighbourVRPsolutionCostTable = zeros(1, NeighbourSolutionNum);
+OperateLocalSearchTable = zeros(NeighbourSolutionNum, 3);
+
+BestNeighbourTSPsolution = zeros(1, ecSpotNum+2*O2OspotNum+VehicleNum);
+BestNeighbourVRPsolution = zeros(VehicleNum, (ecSpotNum+2*O2OspotNum) * 2 + 1);
+BestNeighbourVRPcost = 0;
+
+BestNeighbourTSPsolutionTabu = zeros(1, ecSpotNum+2*O2OspotNum+VehicleNum);
+BestNeighbourVRPsolutionTabu = zeros(VehicleNum, (ecSpotNum+2*O2OspotNum) * 2 + 1);
+BestNeighbourVRPcostTabu = 0;
+
+
+% Mulai iterasi TS
+iterateNum=MaxIterateTime*NeighbourSolutionNum;
+for i = 1 : MaxIterateTime
+    
+    %生成邻域解
+    for j = 1 : NeighbourSolutionNum
+        iterateNum=iterateNum-1
+        Pilihan = randi(3);
+        switch (Pilihan)
+            case 1 % 1-insert
+                [NeighbourTSPsolutionTable(j, :), Kota_1, Kota_2 ] = PerformInsert(CurrentDistrTSPsolution);
+                while(CheckDitrTSPsolution(NeighbourTSPsolutionTable(j, :),O2OshopVec,O2OspotVec))   %不合法返回1
+                    [NeighbourTSPsolutionTable(j, :), Kota_1, Kota_2 ] = PerformInsert(CurrentDistrTSPsolution);
+                end
+                NeighbourVRPsolutionTable(:,:,j) = ConvertToMultiVRPsolution(NeighbourTSPsolutionTable(j, :),DemandVec,volume, ...
+                                                                                                O2OshopVec,O2OspotVec,O2OdemandVec);
+                NeighbourVRPsolutionCostTable(j) =  CalculateMutiVRPtotalCost(NeighbourVRPsolutionTable(:,:,j),...
+                                                                                            DistanceMatrix,DemandVec,VehicleNum);
+                
+            case 2 % 1-swap
+                [NeighbourTSPsolutionTable(j, :), Kota_1, Kota_2 ] = PerformSwap(CurrentDistrTSPsolution);
+                while(CheckDitrTSPsolution(NeighbourTSPsolutionTable(j, :),O2OshopVec,O2OspotVec))   %不合法返回1
+                    [NeighbourTSPsolutionTable(j, :), Kota_1, Kota_2 ] = PerformSwap(CurrentDistrTSPsolution);
+                end
+                NeighbourVRPsolutionTable(:,:,j) = ConvertToMultiVRPsolution(NeighbourTSPsolutionTable(j, :),DemandVec,volume, ...
+                                                                                                O2OshopVec,O2OspotVec,O2OdemandVec);
+                NeighbourVRPsolutionCostTable(j) =  CalculateMutiVRPtotalCost(NeighbourVRPsolutionTable(:,:,j),...
+                                                                                            DistanceMatrix,DemandVec,VehicleNum);
+                
+            case 3 % 2-opt
+                [NeighbourTSPsolutionTable(j, :), Kota_1, Kota_2 ] = Perform2Opt(CurrentDistrTSPsolution);
+                while(CheckDitrTSPsolution(NeighbourTSPsolutionTable(j, :),O2OshopVec,O2OspotVec))   %不合法返回1
+                    [NeighbourTSPsolutionTable(j, :), Kota_1, Kota_2 ] = Perform2Opt(CurrentDistrTSPsolution);
+                end
+                NeighbourVRPsolutionTable(:,:,j) = ConvertToMultiVRPsolution(NeighbourTSPsolutionTable(j, :),DemandVec,volume, ...
+                                                                                                O2OshopVec,O2OspotVec,O2OdemandVec);
+                NeighbourVRPsolutionCostTable(j) =  CalculateMutiVRPtotalCost(NeighbourVRPsolutionTable(:,:,j),...
+                                                                                            DistanceMatrix,DemandVec,VehicleNum);
+        end
+        OperateLocalSearchTable(j, :) = [Pilihan  Kota_1 Kota_2];
+    end
+    
+    %判断这些邻域解是否是禁忌表中的解
+    isTabu = zeros(1, NeighbourSolutionNum);
+    for j = 1 : NeighbourSolutionNum
+        for k = 1 : TabuLength
+            if OperateLocalSearchTable(j, :) == TabuList(k, :)
+                isTabu(j) = 1;
+            end
+        end
+    end
+    MaxCost=999999999;
+    %找最优解或不是禁忌的解
+    BestTabuIndex = 1;
+    BestNotTabuIndex = 1;  
+    BestNeighbourVRPcost = MaxCost;
+    BestNeighbourVRPcostTabu = MaxCost;
+    for j = 1 : NeighbourSolutionNum
+        if  isTabu(j) == 0 % 如果不是禁忌解
+            if NeighbourVRPsolutionCostTable(j) < BestNeighbourVRPcost
+                BestNeighbourTSPsolution = NeighbourTSPsolutionTable(j, :);
+                BestNeighbourVRPsolution = NeighbourVRPsolutionTable(:,:,j);
+                BestNeighbourVRPcost = NeighbourVRPsolutionCostTable(j);
+                BestNotTabuIndex = j;
+            end
+        else   %如果是禁忌解
+            if NeighbourVRPsolutionCostTable(j) < BestNeighbourVRPcostTabu
+                BestNeighbourTSPsolutionTabu = NeighbourTSPsolutionTable(j, :);
+                BestNeighbourVRPsolutionTabu = NeighbourVRPsolutionTable(:,:,j);
+                BestNeighbourVRPcostTabu = NeighbourVRPsolutionCostTable(j);
+                BestTabuIndex = j;
+            end
+        end
+    end
+    
+    % 检测是否是全局禁忌, 
+    if BestNeighbourVRPcostTabu < LeastCost  %如果最优禁忌解优于最优解
+        BestTSPsolution = BestNeighbourTSPsolutionTabu; %solusi global
+        BestVRPsolution = BestNeighbourVRPsolutionTabu; %solusi global
+        LeastCost = BestNeighbourVRPcostTabu; % Jarak solusi global
+        CurrentDistrTSPsolution = BestNeighbourTSPsolutionTabu; %solusi iterasi
+        CurrentVRPsolution = BestNeighbourVRPsolutionTabu; %solusi iterasi
+        CurrentCost = BestNeighbourVRPcostTabu; % Jarak solusi iterasi
+        %更新禁忌表
+        IndeksTabuList = mod(i, TabuLength) + 1;   % i 是当前迭代次数，要更新的禁忌表索引
+        TabuList(IndeksTabuList, :) = OperateLocalSearchTable(BestTabuIndex, :);
+    else %如果最优禁忌邻域解不优于最优解
+        CurrentDistrTSPsolution = BestNeighbourTSPsolution; %solusi iterasi
+        CurrentVRPsolution = BestNeighbourVRPsolution; %solusi iterasi
+        CurrentCost = BestNeighbourVRPcost; % Jarak solusi iterasi
+        if BestNeighbourVRPcost < LeastCost
+            BestTSPsolution = BestNeighbourTSPsolution; %solusi global
+            BestVRPsolution = BestNeighbourVRPsolution; %solusi global
+            LeastCost = BestNeighbourVRPcost; % Jarak solusi global
+        end
+        %update tabu list
+        IndeksTabuList = mod(i, TabuLength) + 1;
+        TabuList(IndeksTabuList, :) = OperateLocalSearchTable(BestNotTabuIndex, :);
+    end
+
+end
+%disp('berapa kali PP');
+%berapakalipp = hitungberapakalipp (sol2);
+%disp(berapakalipp);
+disp ('BestTSPsolution');
+disp(BestTSPsolution);
+%disp (BestVRPsolution);
+disp ('Least Cost');
+disp (LeastCost);
+toc
+for i=1:VehicleNum
+    plot(X_coordinate(BestVRPsolution(i,:)),Y_coordinate(BestVRPsolution(i,:)),'ro-');hold on;
+end
